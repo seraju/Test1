@@ -1,0 +1,173 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Office.Interop.Outlook;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Timers;
+using System.Web;
+using System.Web.Configuration;
+using System.Web.Http;
+using System.Web.Mvc;
+using System.Web.Optimization;
+using System.Web.Routing;
+
+namespace WebApplication1
+{
+    public class WebApiApplication : System.Web.HttpApplication
+    {
+        // Added this class visible variable to hold the timer interval so it's not gotten from the
+        // web.config file on each Elapsed event of the timer
+        private static double TimerIntervalInMilliseconds =
+            Convert.ToDouble(WebConfigurationManager.AppSettings["TimerIntervalInMilliseconds"]);
+        //private readonly ILogger<HelloWorldJob> _logger;
+        Timer timer = new Timer();
+        string path = @"C:\\Download\\2\\Logs";
+        string Attachment = @"C:\\Download\\2";// ConfigurationManager.AppSettings["AttachmentPath"];
+        protected void Application_Start()
+        {
+            AreaRegistration.RegisterAllAreas();
+            GlobalConfiguration.Configure(WebApiConfig.Register);
+            FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
+            RouteConfig.RegisterRoutes(RouteTable.Routes);
+            BundleConfig.RegisterBundles(BundleTable.Bundles);
+
+
+            // Added the following within the Application_Start() procedure:
+            // *******************************************************************************************
+            // The values used in this example will cause your processes to run sometime
+            // between 09:00:00 PM and 09:05:00 PM, with the timer Elapsed event being raised
+            // every 300000ms (5 minutes)
+            //
+            // The following AppSettings were added to Web.config:
+            //    TimerStartTime
+            //    TimerIntervalInMilliseconds
+            // You can use a simple text editor to change your start time and/or timer interval without
+            // having to modify your code, recompile, and republish it. 
+            //
+            // The shorter the interval, then smaller the time window in which the processes will run, but
+            // the more frequently all of this code and event firing is happening. But you could set the
+            // interval to 1000ms and have you events run right at the time specified.
+            //
+            // !!! NOTE: The web.config file is not designed for constant updates. When an ASP.NET
+            // !!! application launches a watch is put on the web.config file. ASP.NET will detect if the
+            // !!! web.config changes while the application is running. When ASP.NET detects a change it
+            // !!! will spin up a new version of the application with the new settings in effect. Any in
+            // !!! process information, such as data kept in Session, Application, and Cache will be lost
+            // !!! (assuming session state is InProc and not using a state server or database).
+            // !!! (Source: http://odetocode.com/Articles/345.aspx)
+            //
+            // *******************************************************************************************
+
+            // The Debug.WriteLine calls are for watching the progress in the Output Window
+            // in Visual Studio - Remove or comment out if you like
+
+            Debug.WriteLine(string.Concat("Application_Start Called: ", DateTime.Now.ToString()));
+
+            // This will raise the Elapsed event every 'x' millisceonds (whatever you set in the
+            // Web.Config file for the added TimerIntervalInMilliseconds AppSetting
+            Timer timer = new Timer(50000);
+
+            timer.Enabled = true;
+
+            // Setup Event Handler for Timer Elapsed Event
+            timer.Elapsed += new ElapsedEventHandler(timer_Elapsed);
+
+            timer.Start();
+        }
+        // Added the following procedure:
+        static void timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            WebApiApplication webApiApplication = new WebApiApplication();
+            webApiApplication.readEmails();
+            // Get the TimerStartTime web.config value
+            //   DateTime MyScheduledRunTime = DateTime.Parse(100000); WebConfigurationManager.AppSettings["TimerStartTime"]);
+
+            // Get the current system time
+            DateTime CurrentSystemTime = DateTime.Now;
+
+            Debug.WriteLine(string.Concat("Timer Event Handler Called: ", CurrentSystemTime.ToString()));
+
+            // This makes sure your code will only run once within the time frame of (Start Time) to
+            // (Start Time+Interval). The timer's interval and this (Start Time+Interval) must stay in sync
+            // or your code may not run, could run once, or may run multiple times per day.
+         //   DateTime LatestRunTime = MyScheduledRunTime.AddMilliseconds(100000);
+
+            // If within the (Start Time) to (Start Time+Interval) time frame - run the processes
+            //if ((CurrentSystemTime.CompareTo(MyScheduledRunTime) >= 0) && (CurrentSystemTime.CompareTo(LatestRunTime) <= 0))
+            //{
+            //    Debug.WriteLine(String.Concat("Timer Event Handling MyScheduledRunTime Actions: ", DateTime.Now.ToString()));
+            //    // RUN YOUR PROCESSES HERE
+            //}
+        }
+
+        public void readEmails()
+        {
+           // WriteToFile("readEmails calls " + DateTime.Now);
+            //  Application outlookApplication = null;
+            //  NameSpace outlookNamespace = null;
+            //MAPIFolder inboxFolder = null;
+            Microsoft.Office.Interop.Outlook._Application outlookApplication = new Microsoft.Office.Interop.Outlook.Application();
+            Microsoft.Office.Interop.Outlook._NameSpace outlookNamespace = outlookApplication.GetNamespace("MAPI");
+            // getting error on below line
+            Microsoft.Office.Interop.Outlook.MAPIFolder inboxFolder = outlookNamespace.GetDefaultFolder(Microsoft.Office.Interop.Outlook.OlDefaultFolders.olFolderInbox);
+            Items mailItems = null;
+
+            try
+            {
+
+                //ns.SendAndReceive(true);
+
+                inboxFolder.Items.Sort("[ReceivedTime]", true);
+
+                //  outlookApplication = new Application();
+                //outlookNamespace = outlookApplication.GetNamespace("MAPI");
+                //  inboxFolder = outlookNamespace.GetDefaultFolder(OlDefaultFolders.olFolderInbox);
+                mailItems = inboxFolder.Items;
+               // WriteToFile("Reading emails... Total mails " + mailItems.Count.ToString() + " at " + DateTime.Now);
+                //this.EventLog.WriteEntry("Reading emails... Total mails " + mailItems.Count.ToString() + " at " + DateTime.Now, EventLogEntryType.Information);
+                foreach (object collectionItem in mailItems)
+               // for (int j = 0; j < mailItems.Count; j++)
+                {
+                    MailItem newEmail = collectionItem as MailItem;
+                    //MailItem newEmail = mailItems[j] as MailItem;
+                    if (newEmail == null) continue;
+
+                    if (newEmail.Attachments.Count > 0 && newEmail.UnRead)
+                    {
+                      //  WriteToFile("New emails recived with attachment at " + DateTime.Now + "-  mail body : " + newEmail.Body.ToString());
+                        for (int i = 1; i <= newEmail.Attachments.Count; i++)
+                        {
+                            string filePath = Path.Combine(Attachment, newEmail.Attachments[i].FileName);
+                            FileInfo file = new FileInfo(newEmail.Attachments[i].FileName);
+                            //if (file.Extension == ".xlsx" || file.Extension == ".xls")
+                            //{
+                            newEmail.Attachments[i].SaveAsFile(filePath);
+                            newEmail.UnRead = false;
+                            // }
+
+                        }
+                    }
+                    //Marshal.ReleaseComObject(collectionItem);
+                }
+
+            }
+
+            catch (System.Exception e)
+            {
+              //  WriteToFile(string.Format("Exception caught: {0} ", e));
+
+            }
+            finally
+            {
+                //ReleaseComObject(mailItems);
+                //ReleaseComObject(inboxFolder);
+                //ReleaseComObject(outlookNamespace);
+                //ReleaseComObject(outlookApplication);
+            }
+
+        }
+    }
+
+}
